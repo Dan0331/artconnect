@@ -453,10 +453,12 @@
                 <div class="cart-total">
                     <strong>Total: <span id="cartTotal">0.000</span> ETH</strong>
                 </div>
-                <div class="cart-actions">
-                    <button class="btn-secondary" onclick="clearCart()">Clear Cart</button>
-                    <button class="btn-primary" onclick="checkout()" id="checkoutBtn">Checkout</button>
                 </div>
+                <div class="cart-actions">
+                    <button class="btn-secondary cart-btn" id="clearCartBtn" onclick="clearCart()">Clear Cart</button>
+                    <button class="btn-primary cart-btn" id="checkoutBtn" onclick="checkout()">Checkout</button>
+                </div>
+
             </div>
         </div>
     </div>
