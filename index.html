@@ -542,41 +542,62 @@
     </footer>
 
     <!-- Firebase Initialization and App Logic -->
-    <script>
-      import {
-        initializeApp,
-      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-      import {
-        getFirestore,
-        collection,
-        addDoc,
-        getDocs,
-        deleteDoc,
-        doc,
-        updateDoc,
-      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+   <!-- ✅ Firebase must come before your main script -->
+<script type="module">
+  import { 
+    initializeApp 
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { 
+    getFirestore,
+    setDoc,
+    getDoc,
+    doc,
+    addDoc,
+    collection,
+    getDocs,
+    query,
+    orderBy,
+    deleteDoc,
+    updateDoc,
+    arrayUnion
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyDtvLb1RHpXDY5yKMIYkxlZKzKFiNbhmy4",
-        authDomain: "artconnect-9d99a.firebaseapp.com",
-        projectId: "artconnect-9d99a",
-        storageBucket: "artconnect-9d99a.appspot.com",
-        messagingSenderId: "123391938297",
-        appId: "1:123391938297:web:8573f94b2fdf283305ef95",
-      };
+  // ✅ Firebase config (yours is correct)
+  const firebaseConfig = {
+    apiKey: "AIzaSyDHJQ1rMxRAEUIc71WOzp4tyK3hswvfSuY",
+    authDomain: "artconnectnft-24db1.firebaseapp.com",
+    projectId: "artconnectnft-24db1",
+    storageBucket: "artconnectnft-24db1.appspot.com",
+    messagingSenderId: "718306679207",
+    appId: "1:718306679207:web:d6f277484bf9e0fb93fe82",
+    measurementId: "G-8M0RCH58VE"
+  };
 
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+  // ✅ Initialize Firebase and Firestore
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
 
-      window.db = db;
-      window.addDoc = addDoc;
-      window.getDocs = getDocs;
-      window.deleteDoc = deleteDoc;
-      window.doc = doc;
-      window.updateDoc = updateDoc;
-      window.collection = collection;
-    </script>
+  // ✅ Expose globally so script.js (and inline onclick handlers) can access them
+  window.db = db;
+  Object.assign(window, {
+    setDoc,
+    getDoc,
+    doc,
+    addDoc,
+    collection,
+    getDocs,
+    query,
+    orderBy,
+    deleteDoc,
+    updateDoc,
+    arrayUnion
+  });
 
-    <script type="module" src="scripts.js"></script>
-  </body>
+  console.log("🔥 Firebase v10 initialized and Firestore helpers exposed globally");
+</script>
+
+<!-- ✅ Your main script (must be loaded last) -->
+<script type="module" src="script.js"></script>
+
+</body>
 </html>
