@@ -541,39 +541,41 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Artwork functionality
-async function loadArtworks() {
-    try {
-        // Fetch artworks from Firestore
-        const snapshot = await getDocs(collection(db, "artworks"));
+import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-        submittedArtworks = []; // reset before reloading
-        snapshot.forEach(docSnap => {
-            const art = docSnap.data();
-            // Ensure each doc has an id (use Firestore's id if not present)
-            submittedArtworks.push({
-                id: art.id || docSnap.id,
-                ...art
-            });
+async function loadArtworksLive() {
+  try {
+    // 🔹 Wait for Firebase initialization before using Firestore
+    const db = await waitForFirebase();
+    console.log("🔥 Firestore ready, initializing live listener...");
+
+    const artworksRef = collection(db, "artworks");
+
+    // Live listener for Firestore changes
+    onSnapshot(artworksRef, (snapshot) => {
+      const submittedArtworks = [];
+
+      snapshot.forEach(docSnap => {
+        const art = docSnap.data();
+        submittedArtworks.push({
+          id: art.id || docSnap.id,
+          ...art
         });
+      });
 
-        // Save to localStorage for offline support
-        localStorage.setItem('user_submitted_artwork', JSON.stringify(submittedArtworks));
+      // Save locally for offline cache
+      localStorage.setItem('user_submitted_artwork', JSON.stringify(submittedArtworks));
 
-        // Merge static demo + db artworks (optional)
-        //const combinedArtworks = [...artworkData, ...submittedArtworks];
-        //currentArtworks = combinedArtworks;
+      // Update global variable and re-render immediately
+      currentArtworks = submittedArtworks;
+      renderArtworks(currentArtworks);
 
-        // If you want ONLY db artworks, comment out the line above and use this:
-        currentArtworks = submittedArtworks;
-
-        renderArtworks(currentArtworks);
-
-    } catch (error) {
-        console.error("Error loading artworks:", error);
-        showToast("Failed to load artworks from server", "error");
-    }
-
+      console.log(`✅ Real-time Firestore listener active. Loaded ${submittedArtworks.length} artworks.`);
+    });
+  } catch (error) {
+    console.error("❌ Real-time loading failed:", error);
+    showToast("Failed to connect live updates", "error");
+  }
 }
 
 function getImageUrl(url) {
@@ -2223,106 +2225,130 @@ async function loadFeaturedArtists() {
 }
 
 
-async function loadUserArtworks(walletAddr) {
-    if (!walletAddr) return;
-    const container = document.getElementById("userArtworks");
-    container.innerHTML = "<p>Loading...</p>";
+function loadUserArtworksLive(walletAddr) {
+  if (!walletAddr) return;
+  const container = document.getElementById("userArtworks");
+  container.innerHTML = "<p>Loading live data...</p>";
 
-    try {
-        const qSnap = await getDocs(collection(db, "users", walletAddr, "sellingArts"));
-        if (qSnap.empty) {
-            container.innerHTML = "<p>No artworks submitted yet.</p>";
-            return;
-        }
+  try {
+    const sellingRef = collection(window.db, "users", walletAddr, "sellingArts");
+    console.log("👀 Listening to live updates for:", walletAddr);
 
-        container.innerHTML = "";
-        qSnap.forEach(docSnap => {
-            const data = docSnap.data();
-            const art = data.artwork ? data.artwork : data;
-            art.id = docSnap.id;
-            art.sellerId = data.sellerId || art.sellerId || walletAddr;
-            container.innerHTML += `
-                <div class="artwork-card">
-                    <div class="artwork-image">
-                        <img src="${getImageUrl(art.imageUrl)}" alt="${art.title || "Untitled"}" loading="lazy">
-                    </div>
-                    <div class="artwork-info">
-                        <h3>${art.title || "Untitled"}</h3>
-                        <p>by ${art.artist || "Unknown Artist"}</p>
-                        <p>${art.category || "Uncategorized"} • ${art.year || "—"}</p>
-                        <p>${art.description || "No description"}</p>
-                        <div class="artwork-footer">
-                            <span class="artwork-price">${art.price || "0.000"} tETH</span>
-                        </div>
-                        <div class="artwork-actions">
-                            <button class="btn-secondary" onclick="viewArtworkDetails('${art.id}', 'submissions')">
-                                <i class="fas fa-eye"></i> View Details
-                            </button>
-                        </div>
-                    </div>
-                </div>`;
-        });
-    } catch (err) {
-        console.error("Error loading user artworks:", err);
-        container.innerHTML = "<p>Error loading artworks.</p>";
-    }
+    // 🔥 Firestore onSnapshot — listens for real-time updates
+    onSnapshot(sellingRef, (snapshot) => {
+      if (snapshot.empty) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1/-1; text-align:center; padding: 3rem;">
+            <h3>No artworks submitted yet.</h3>
+            <p>Upload new artworks to see them here.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = "";
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const art = data.artwork ? data.artwork : data;
+        art.id = docSnap.id;
+        art.sellerId = data.sellerId || art.sellerId || walletAddr;
+
+        container.innerHTML += `
+          <div class="artwork-card">
+              <div class="artwork-image">
+                  <img src="${getImageUrl(art.imageUrl)}" alt="${art.title || "Untitled"}" loading="lazy">
+              </div>
+              <div class="artwork-info">
+                  <h3>${art.title || "Untitled"}</h3>
+                  <p>by ${art.artist || "Unknown Artist"}</p>
+                  <p>${art.category || "Uncategorized"} • ${art.year || "—"}</p>
+                  <p>${art.description || "No description"}</p>
+                  <div class="artwork-footer">
+                      <span class="artwork-price">${art.price || "0.000"} tETH</span>
+                  </div>
+                  <div class="artwork-actions">
+                      <button class="btn-secondary" onclick="viewArtworkDetails('${art.id}', 'submissions')">
+                          <i class="fas fa-eye"></i> View Details
+                      </button>
+                  </div>
+              </div>
+          </div>`;
+      });
+    });
+
+    console.log("✅ Real-time listener active for user artworks:", walletAddr);
+
+  } catch (err) {
+    console.error("❌ Real-time user artworks failed:", err);
+    container.innerHTML = "<p style='color:red;'>Error loading artworks live.</p>";
+  }
 }
 
-async function loadUserPurchases(walletAddr) {
-    if (!walletAddr) return;
-    const container = document.getElementById("userPurchases");
-    container.innerHTML = "<p>Loading your purchases...</p>";
 
-    try {
-        const qSnap = await getDocs(collection(db, "users", walletAddr.toLowerCase(), "artBought"));
-        if (qSnap.empty) {
-            container.innerHTML = `
-                <div class="empty-state" style="grid-column: 1/-1; text-align:center; padding: 3rem;">
-                    <h3>No purchased artworks yet</h3>
-                    <p>Buy from the gallery to see them here!</p>
-                </div>`;
-            return;
-        }
+function loadUserPurchasesLive(walletAddr) {
+  if (!walletAddr) return;
 
-        const purchasedArts = [];
-        qSnap.forEach(docSnap => {
-            const data = docSnap.data();
-            const art = data.artwork ? data.artwork : data;
-            purchasedArts.push({ id: docSnap.id, ...art });
-        });
+  const container = document.getElementById("userPurchases");
+  container.innerHTML = "<p>Loading your purchases...</p>";
 
-        // Match marketplace card design
-        container.innerHTML = purchasedArts.map(art => `
-            <div class="artwork-card">
-                <div class="artwork-image">
-                    <img src="${getImageUrl(art.imageUrl)}" alt="${art.title || "Untitled"}" loading="lazy">
-                </div>
-                <div class="artwork-info">
-                    <div class="artwork-header">
-                        <h3 class="artwork-title">${art.title || "Untitled"}</h3>
-                    </div>
-                    <p class="artwork-artist">by ${art.artist || "Unknown Artist"}</p>
-                    <p class="artwork-meta">${art.category || "Uncategorized"} • ${art.year || "—"}</p>
-                    <p class="artwork-description">${art.description || "No description available."}</p>
-                    <div class="artwork-footer">
-                        <span class="artwork-price">${art.price || "0.000"} tETH</span>
-                    </div>
-                    <div class="artwork-actions">
-                        <button class="btn-primary" onclick="openResellModal('${art.id}', '${art.title}', ${art.price || 0})">
-                            <i class="fas fa-sync-alt"></i> Resell
-                        </button>
-                        <button class="btn-secondary" onclick="viewArtworkDetails('${art.id}', 'purchases')">
-                            <i class="fas fa-eye"></i> View Details
-                        </button>
-                    </div>
-                </div>
+  try {
+    console.log("💸 Setting up real-time listener for user purchases:", walletAddr);
+
+    // ✅ Always use window.db to ensure you’re referencing the global Firestore instance
+    const userPurchasesRef = collection(window.db, "users", walletAddr.toLowerCase(), "artBought");
+
+    // 🔁 Real-time listener
+    onSnapshot(userPurchasesRef, (snapshot) => {
+      if (snapshot.empty) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1/-1; text-align:center; padding: 3rem;">
+              <h3>No purchased artworks yet</h3>
+              <p>Buy from the gallery to see them here!</p>
+          </div>`;
+        return;
+      }
+
+      const purchasedArts = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const art = data.artwork ? data.artwork : data;
+        purchasedArts.push({ id: docSnap.id, ...art });
+      });
+
+      // 🖼️ Render artworks exactly like your original version
+      container.innerHTML = purchasedArts.map(art => `
+        <div class="artwork-card">
+          <div class="artwork-image">
+            <img src="${getImageUrl(art.imageUrl)}" alt="${art.title || "Untitled"}" loading="lazy">
+          </div>
+          <div class="artwork-info">
+            <div class="artwork-header">
+              <h3 class="artwork-title">${art.title || "Untitled"}</h3>
             </div>
-        `).join('');
+            <p class="artwork-artist">by ${art.artist || "Unknown Artist"}</p>
+            <p class="artwork-meta">${art.category || "Uncategorized"} • ${art.year || "—"}</p>
+            <p class="artwork-description">${art.description || "No description available."}</p>
+            <div class="artwork-footer">
+              <span class="artwork-price">${art.price || "0.000"} tETH</span>
+            </div>
+            <div class="artwork-actions">
+              <button class="btn-primary" onclick="openResellModal('${art.id}', '${art.title}', ${art.price || 0})">
+                <i class="fas fa-sync-alt"></i> Resell
+              </button>
+              <button class="btn-secondary" onclick="viewArtworkDetails('${art.id}', 'purchases')">
+                <i class="fas fa-eye"></i> View Details
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
 
-    } catch (err) {
-        console.error("Error loading purchases:", err);
-        container.innerHTML = "<p style='color:red;'>Error loading purchases.</p>";
-    }
+      console.log(`✅ Live purchases updated: ${purchasedArts.length} items`);
+    });
+
+  } catch (err) {
+    console.error("❌ Failed to set up real-time purchase listener:", err);
+    container.innerHTML = "<p style='color:red;'>Error loading purchases.</p>";
+  }
 }
 
 
