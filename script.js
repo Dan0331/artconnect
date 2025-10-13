@@ -95,8 +95,8 @@ const blockchainDetails = {
 
 //       // Preload user data immediately
 //       await loadUserProfileFromDB(walletAddress);
-//       await loadUserArtworks(walletAddress);
-//       await loadUserPurchases(walletAddress);
+//       await loadUserArtworksLive(walletAddress);
+//       await loadUserPurchasesLive(walletAddress);
 //     }
 
 //     if (typeof window.ethereum !== "undefined") {
@@ -111,8 +111,8 @@ const blockchainDetails = {
 
 //         // Refresh user data if needed
 //         await loadUserProfileFromDB(walletAddress);
-//         await loadUserArtworks(walletAddress);
-//         await loadUserPurchases(walletAddress);
+//         await loadUserArtworksLive(walletAddress);
+//         await loadUserPurchasesLive(walletAddress);
 //       } else {
 //         console.log("No wallet connected on reload.");
 //       }
@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Load initial data
-    loadArtworks();
+    loadArtworksLive();
     loadArtists();
     updateCartUI();
     updateWalletUI();
@@ -934,7 +934,7 @@ async function checkout() {
             setTimeout(() => {
                 hideLoading();
                 showToast('Payment successful! Order confirmed.', 'success');
-                loadArtworks();
+                loadArtworksLive();
             }, 800);
         }
     } catch (error) {
@@ -1064,7 +1064,7 @@ async function submitArtwork(event) {
         
         showToast('Artwork submitted successfully!', 'success');
         showSection('gallery');
-        loadArtworks();
+        loadArtworksLive();
         setTimeout(() => location.reload(), 1000);
         
     } catch (error) {
@@ -1847,8 +1847,8 @@ function enableUsernameEdit() {
 
 //     checkUsernameCooldown();
 
-//     loadUserArtworks(walletAddress);
-//     loadUserPurchases(walletAddress);
+//     loadUserArtworksLive(walletAddress);
+//     loadUserPurchasesLive(walletAddress);
 // }
 
 
@@ -1880,8 +1880,8 @@ function renderUserProfile() {
 
   // Load user's artworks & purchases
   if (walletAddress) {
-    loadUserArtworks(walletAddress);
-    loadUserPurchases(walletAddress);
+    loadUserArtworksLive(walletAddress);
+    loadUserPurchasesLive(walletAddress);
   }
 
   // ✅ NEW: ensure wallet data is properly recognized after refresh
@@ -1890,8 +1890,8 @@ function renderUserProfile() {
     document.getElementById("profileWallet").textContent = `Wallet: ${address}`;
 
     // Reload wallet-dependent data once the wallet reconnects
-    loadUserArtworks(address);
-    loadUserPurchases(address);
+    loadUserArtworksLive(address);
+    loadUserPurchasesLive(address);
   });
 }
 
@@ -2464,9 +2464,9 @@ async function resellArtwork(artId, newPrice) {
         showToast("Artwork listed for resale!", "success");
 
         // Update UI instantly
-        loadUserPurchases(); // refresh purchased list
-        loadUserArtworks();   // refresh selling list
-        loadArtworks();
+        loadUserPurchasesLive(); // refresh purchased list
+        loadUserArtworksLive();   // refresh selling list
+        loadArtworksLive();
         hideLoading();
 
     } catch (error) {
