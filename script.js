@@ -2503,6 +2503,45 @@ function renderUserPurchases(purchases) {
     `).join('');
 }
 
+
+
+// script.js
+window.connectWallet = connectWallet;
+window.disconnectWallet = disconnectWallet;
+window.toggleCart = toggleCart;
+window.addToCart = addToCart;
+window.removeFromCart = removeFromCart;
+window.clearCart = clearCart;
+window.checkout = checkout;
+window.showSection = showSection;
+window.loadArtworksLive = loadArtworksLive;
+window.filterArtworks = filterArtworks;
+window.submitArtwork = submitArtwork;
+window.approveAllArtworks = approveAllArtworks;
+window.viewReports = viewReports;
+window.exportData = exportData;
+window.viewAllUsers = viewAllUsers;
+window.viewTransactions = viewTransactions;
+window.enableUsernameEdit = enableUsernameEdit;
+window.saveUsername = saveUsername;
+window.enableBioEdit = enableBioEdit;
+window.saveBio = saveBio;
+window.showArtworkDetail = showArtworkDetail;
+window.closeArtworkModal = closeArtworkModal;
+window.showArtistProfile = showArtistProfile;
+window.closeResellModal = closeResellModal;
+window.confirmResell = confirmResell;
+window.closeBlockchainModal = closeBlockchainModal;
+window.closeDetailsModal = closeDetailsModal;
+window.closeArtistModal = closeArtistModal;
+window.viewArtworkDetails = viewArtworkDetails;
+window.openResellModal = openResellModal;
+window.resellArtwork = resellArtwork;
+window.loadUserPurchasesLive = loadUserPurchasesLive;
+window.loadUserArtworksLive = loadUserArtworksLive;
+window.hideLoading = hideLoading;
+window.buyArtworkFromModal = buyArtworkFromModal;
+
 // Make sure all functions are defined above this line
 document.addEventListener("DOMContentLoaded", () => {
   Object.assign(window, {
