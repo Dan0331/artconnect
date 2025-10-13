@@ -372,25 +372,19 @@ function updateWalletUI() {
 }
 
 async function sendPayment(toAddress, amount) {
-
-    // ✅ Ensure wallet is ready before executing transaction
     if (!walletConnected || !walletAddress) {
         return onWalletReady(async (address) => {
             console.log("Wallet was not ready — now connected:", address);
-            return await sendPayment(toAddress, amount); // re-run once wallet is ready
+            return await sendPayment(toAddress, amount);
         });
     }
 
-    if (!walletConnected) throw new Error('Wallet not connected');
-
-    // Show loading overlay
     showLoading();
 
     try {
-        // Get current chain ID
         let chainId = await window.ethereum.request({ method: 'eth_chainId' });
 
-        // Allow only Sepolia (0xaa36a7)
+        // ✅ Ensure we're on Sepolia
         if (chainId !== '0xaa36a7') {
             try {
                 await window.ethereum.request({
@@ -399,11 +393,10 @@ async function sendPayment(toAddress, amount) {
                 });
                 chainId = '0xaa36a7';
             } catch (switchError) {
-                if (switchError.code === 4902) {
+                if (switchError.code === 4902)
                     throw new Error('Sepolia not available in MetaMask. Please add it manually.');
-                } else {
+                else
                     throw new Error('Please switch your MetaMask network to Sepolia');
-                }
             }
         }
 
@@ -427,7 +420,6 @@ async function sendPayment(toAddress, amount) {
         if (error.code === 4001) throw new Error('Transaction rejected by user');
         throw error;
     } finally {
-        // Hide loading overlay after transaction attempt (success or fail)
         hideLoading();
     }
 }
@@ -631,7 +623,7 @@ function showArtworkDetail(artworkId) {
             <div class="artwork-detail-meta">
                 <span>${artwork.category}</span>
                 <span>${artwork.year}</span>
-                <span>${artwork.dimensions}</span>
+                <span>${artwork.dimension}</span>
             </div>
             <p class="artwork-detail-description">${artwork.description}</p>
             <div class="artwork-status-detail">
@@ -654,9 +646,8 @@ function showArtworkDetail(artworkId) {
 </Editor.edit_file_by_replace>
 
 <Editor.edit_file_by_replace>
-<file_name>script.js</file_name>
+<file_name></file_name>
 <to_replace>                <div class="cart-actions">
-                    <button class="btn-secondary" onclick="clearCart()">Clear Cart</button>
                     <button class="btn-primary" onclick="checkout()" id="checkoutBtn">Checkout</button>
                 </div></to_replace>
 <new_content>
@@ -689,6 +680,7 @@ function addToCart(artworkId) {
             sellerId: artwork.sellerId,
             category: artwork.category || "Uncategorized",
             description: artwork.description || "",
+            dimension: artwork.dimensions || "",
             year: artwork.year || "",
             quantity: 1
         });
@@ -723,7 +715,20 @@ function updateCartUI() {
     const cartCount = document.getElementById('cartCount');
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     cartCount.textContent = totalItems;
+
+    const checkoutBtn = document.getElementById('checkoutBtn');
+    const clearCartBtn = document.getElementById('clearCartBtn');
+
+    if (totalItems === 0) {
+        checkoutBtn.disabled = true;
+        clearCartBtn.disabled = true;
+    } else {
+        checkoutBtn.disabled = false;
+        clearCartBtn.disabled = false;
+    }
 }
+
+
 
 function toggleCart() {
     const modal = document.getElementById('cartModal');
@@ -770,7 +775,6 @@ function renderCartItems() {
 }
 
 async function checkout() {
-
     if (!walletConnected || !walletAddress) {
         return onWalletReady(async (address) => {
             console.log("Wallet was not ready — now connected:", address);
@@ -783,18 +787,11 @@ async function checkout() {
         return;
     }
 
-    if (!walletConnected || !walletAddress) {
-        showToast('Please connect your MetaMask wallet first', 'error');
-        return;
-    }
-
-    const platformWallet = '0x742d35Cc6686C59fCC3e544961fcdeEeC4d91dc3';
+    showLoading();
+    showLoadingText("Preparing your transactions...");
+    showToast('Processing payment...', 'warning');
 
     try {
-        showLoading();
-        showLoadingText("Preparing your transactions...");
-        showToast('Processing payment...', 'warning');
-
         for (let item of cart) {
             if (!item.sellerId || item.sellerId === "unknown") {
                 console.warn(`Missing sellerId for artwork: ${item.title}`);
@@ -802,65 +799,75 @@ async function checkout() {
             }
 
             const totalPrice = item.price * (item.quantity || 1);
+            const sellerAmount = totalPrice; // 100% to artist
+            const today = new Date().toISOString().split("T")[0];
 
-            // Split payment
-            const sellerAmount = totalPrice * 1;
-            //const platformAmount = totalPrice * 0.1;
-
-            // 🔹 Step 1: Pay Seller
+            // 🔹 Pay Seller
             showLoadingText(`Waiting for MetaMask confirmation to pay seller for "${item.title}"...`);
             const txSeller = await sendPayment(item.sellerId, sellerAmount);
             console.log("Transaction sent to seller:", txSeller);
 
-            // 🔹 Step 2: Pay Platform
-            //showLoadingText(`Waiting for MetaMask confirmation to pay platform fee for "${item.title}"...`);
-            //const txPlatform = await sendPayment(platformWallet, platformAmount);
-            //console.log("Transaction sent to platform:", txPlatform);
-
-            // 🔹 Record transactions in Firestore
-            const buyerRef = doc(db, "users", walletAddress.toLowerCase(), "artBought", String(item.id));
-            const sellerRef = doc(db, "users", item.sellerId.toLowerCase(), "artSold", String(item.id));
-
+            // Common record for both buyer & seller
             const recordData = {
                 artwork: {
-                    id: item.id,
-                    title: item.title,
-                    artist: item.artist || "Unknown Artist",
-                    price: item.price,
-                    imageUrl: item.imageUrl,
-                    category: item.category || "Uncategorized",
-                    description: item.description || "",
-                    year: item.year || "",
+                id: item.id,
+                title: item.title,
+                artist: item.artist || "Unknown Artist",
+                price: item.price,
+                category: item.category || "Uncategorized",
+                description: item.description || "",
+                dimension: item.dimension || "N/A",
+                imageUrl: item.imageUrl,
+                year: item.year || "",
                 },
                 buyerId: walletAddress.toLowerCase(),
                 sellerId: item.sellerId.toLowerCase(),
                 timestamp: new Date().toISOString(),
             };
 
-            await setDoc(buyerRef, recordData);
+            // For Seller: Simple sale record (no blockchain info)
+            const sellerRef = doc(db, "users", item.sellerId.toLowerCase(), "artSold", String(item.id));
             await setDoc(sellerRef, recordData);
 
-            // 🔹 Remove purchased artwork
+            // For Buyer: Enhanced version with blockchain history
+            const artSnap = await getDoc(doc(db, "artworks", String(item.id)));
+            let artData = artSnap.exists() ? artSnap.data() : item;
+
+            const owner_history = Array.isArray(artData.owner_history)
+                ? [...artData.owner_history, { owner: walletAddress.toLowerCase(), date: today, event: "Sold" }]
+                : [
+                    { owner: item.sellerId.toLowerCase(), date: today, event: "Listed" },
+                    { owner: walletAddress.toLowerCase(), date: today, event: "Sold" },
+                ];
+
+            const price_history = Array.isArray(artData.price_history)
+                ? [...artData.price_history, { price: parseFloat(item.price), date: today, event: "Sold" }]
+                : [{ price: parseFloat(item.price), date: today, event: "Sold" }];
+
+            const buyerRef = doc(db, "users", walletAddress.toLowerCase(), "artBought", String(item.id));
+            await setDoc(buyerRef, {
+                ...recordData,
+                current_owner: walletAddress.toLowerCase(),
+                original_owner: artData.original_owner || item.sellerId.toLowerCase(),
+                owner_history,
+                price_history,
+                transaction_hash: txSeller || "",
+            });
+
+            // Delete sold art from seller + global
             await deleteDoc(doc(db, "artworks", String(item.id)));
-            console.log("Deleted from global:", item.id);
-
             await deleteDoc(doc(db, "users", item.sellerId.toLowerCase(), "sellingArts", String(item.id)));
-            console.log("Deleted from seller:", item.sellerId);
+
+            clearCart();
+            toggleCart();
+            showLoadingText("Finalizing your order...");
+
+            setTimeout(() => {
+                hideLoading();
+                showToast('Payment successful! Order confirmed.', 'success');
+                loadArtworks();
+            }, 800);
         }
-
-        // 🔹 All payments done — clear and close
-        clearCart();
-        toggleCart();
-        showLoadingText("Finalizing your order...");
-
-        setTimeout(() => {
-            hideLoading();
-            showToast('Payment successful! Order confirmed.', 'success');
-            loadArtworks();
-        }, 800);
-
-
-
     } catch (error) {
         console.error('Checkout failed:', error);
         hideLoading();
@@ -888,6 +895,11 @@ async function uploadToImgBB(file) {
         throw new Error("ImgBB upload failed");
     }
 }
+
+
+const yearInput = document.getElementById("artworkYear");
+const currentYear = new Date().getFullYear();
+yearInput.max = currentYear;
 
 
 // Submit artwork functionality
@@ -918,29 +930,54 @@ async function submitArtwork(event) {
 
 
         const formData = {
-            title: document.getElementById('artworkTitle').value,
+            title: document.getElementById('artworkTitle').value.trim(),
             artist: currentUser?.username || "Unnamed Artist",
-            description: document.getElementById('artworkDescription').value,
-            price: parseFloat(document.getElementById('artworkPrice').value),
-            category: document.getElementById('artworkCategory').value,
-            dimensions: document.getElementById('artworkDimensions').value,
-            year: parseInt(document.getElementById('artworkYear').value),
+            description: document.getElementById('artworkDescription').value.trim(),
+            price: parseFloat(document.getElementById('artworkPrice').value) || 0,
+            category: document.getElementById('artworkCategory').value || "Uncategorized",
+            dimension: document.getElementById('artworkDimensions').value || "Unspecified",
+            year: parseInt(document.getElementById('artworkYear').value) || new Date().getFullYear(),
             imageUrl
         };
         
         // Validate form
         if (!validateSubmissionForm(formData)) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
             return;
         }
 
         const artDocId = String(Date.now());
+        const today = new Date().toISOString().split('T')[0];
         
         const newArtwork = {
             id: artDocId,
-            ...formData,
+            title: formData.title,
+            artist:formData.artist,
+            category: formData.category,
+            dimension: formData.dimension,
+            description: formData.description,
+            imageUrl: formData.imageUrl,
             sellerId: walletAddress.toLowerCase(),
+            original_owner: walletAddress.toLowerCase(),
+            price: formData.price,
+            year: formData.year,
             inStock: true,
-            submittedAt: new Date().toISOString()
+            submittedAt: new Date().toISOString(),
+            owner_history: [
+                {
+                owner: walletAddress.toLowerCase(),
+                date: today,
+                event: "Submitted"
+                }
+            ],
+            price_history: [
+                {
+                price: parseFloat(formData.price) || 0,
+                date: today,
+                event: "Listed"
+                }
+            ]
         };
 
         // save to user's sellingArts with that id
@@ -959,7 +996,7 @@ async function submitArtwork(event) {
         showToast('Artwork submitted successfully!', 'success');
         showSection('gallery');
         loadArtworks();
-        //setTimeout(() => location.reload(), 1000);
+        setTimeout(() => location.reload(), 1000);
         
     } catch (error) {
         console.error('Submission failed:', error);
@@ -972,11 +1009,16 @@ async function submitArtwork(event) {
 
 function validateSubmissionForm(formData) {
     if (!formData.title || !formData.artist || !formData.description || 
-        !formData.imageUrl || !formData.category || !formData.dimensions) {
+        !formData.imageUrl || !formData.category || !formData.dimension) {
         showToast('Please fill in all required fields', 'error');
         return false;
     }
     
+    if (formData.dimension === "") {
+        showToast('Please select a resolution/dimension', 'error');
+        return false;
+    }
+
     if (isNaN(formData.price) || formData.price <= 0) {
         showToast('Please enter a valid price', 'error');
         return false;
@@ -1187,27 +1229,27 @@ async function loadArtists() {
     //       <small>${artist.joinedDate} Joined</small>
     //     </div>
     //   </div>
-    artistsGrid.innerHTML = artists.map(artist => `
-      <div class="artist-card" onclick="showArtistProfile('${artist.walletAddress}')">
-        <div class="artist-header">
-            <div class="artist-avatar">${artist.username.charAt(0).toUpperCase()}</div>
-            <div class="artist-info">
-            <h3>${artist.username}</h3>
-            <p>${artist.bio ? artist.bio.slice(0, 40) + "..." : "No bio yet."}</p>
-            </div>
-        </div>
-
-        <div class="artist-stats">
-            <span><i class="fa-solid fa-image"></i> ${artist.artworks?.length || 0} Artworks</span>
-            <span><i class="fa-brands fa-ethereum"></i> ${(artist.totalSales || 0).toFixed(3)} tETH</span>
-        </div>
-
-        <div class="artist-stats">
-            <span><i class="fa-regular fa-calendar"></i> ${artist.joinedYear || "-"}</span>
+artistsGrid.innerHTML = artists.map(artist => `
+  <div class="artist-card" onclick="showArtistProfile('${artist.walletAddr}')">
+    <div class="artist-header">
+        <div class="artist-avatar">${artist.username.charAt(0).toUpperCase()}</div>
+        <div class="artist-info">
+          <h3>${artist.username}</h3>
+          <p>${artist.bio ? artist.bio.slice(0, 40) + "..." : "No bio yet."}</p>
         </div>
     </div>
 
-    `).join('');
+    <div class="artist-stats">
+        <span><i class="fa-solid fa-image"></i> ${artist.artworks?.length || 0} Artworks</span>
+        <span><i class="fa-brands fa-ethereum"></i> ${(artist.totalSales || 0).toFixed(3)} tETH</span>
+    </div>
+
+    <div class="artist-stats">
+        <span><i class="fa-regular fa-calendar"></i> ${artist.joinedDate || "-"}</span>
+    </div>
+  </div>
+`).join('');
+
   } catch (err) {
     console.error('Error loading artists:', err);
     artistsGrid.innerHTML = `<p style="color:red;">Failed to load artists.</p>`;
@@ -1215,169 +1257,224 @@ async function loadArtists() {
 }
 
 
+// async function showArtistProfile(walletAddr) {
+//     walletAddr = walletAddr.toLowerCase();
+//     const modal = document.getElementById("artistModal");
+//     const profileContainer = document.getElementById("artistProfile");
 
-// function showArtistProfile(artistName) {
-//     const artistArtworks = submittedArtworks.filter(artwork => artwork.artist === artistName);
-//     if (artistArtworks.length === 0) return;
+//     if (!modal) {
+//         console.error("❌ artistModal element not found in HTML");
+//         return;
+//     }
+//     if (!profileContainer) {
+//         console.error("❌ artistProfile container not found in HTML");
+//         modal.style.display = "none";
+//         return;
+//     }
 
-//     // Calculate stats
-//     const totalSales = artistArtworks.reduce((sum, art) => sum + (parseFloat(art.price) || 0), 0);
-//     const joinDate = artistArtworks.reduce((earliest, art) => {
-//         if (!art.submittedAt) return earliest;
-//         const date = new Date(art.submittedAt);
-//         return !earliest || date < earliest ? date : earliest;
-//     }, null);
-
-//     const modal = document.getElementById('artistModal');
-//     const profileContainer = document.getElementById('artistProfile');
-
+//     modal.style.display = "block";
 //     profileContainer.innerHTML = `
-//         <div class="artist-profile-header">
-//             <div class="artist-avatar-xl">${artistName.charAt(0).toUpperCase()}</div>
-//             <div class="artist-profile-info">
-//                 <h2>${artistName}</h2>
-//                 <p class="artist-profile-bio">This artist has not added a bio yet.</p>
-//                 <div class="artist-profile-stats">
-//                     <div class="profile-stat">
-//                         <i class="fas fa-palette"></i>
-//                         <span>${artistArtworks.length} Artworks</span>
-//                     </div>
-//                     <div class="profile-stat">
-//                         <i class="fab fa-ethereum"></i>
-//                         <span>${totalSales.toFixed(2)} tETH Total Sales</span>
-//                     </div>
-//                     <div class="profile-stat">
-//                         <i class="fas fa-calendar"></i>
-//                         <span>Joined ${joinDate ? joinDate.getFullYear() : "—"}</span>
-//                     </div>
-//                 </div>
-//             </div>
-//         </div>
-        
-//         <div class="artist-portfolio">
-//             <h3>Portfolio</h3>
-//             <div class="portfolio-grid">
-//                 ${artistArtworks.map(artwork => `
-//                     <div class="portfolio-item" onclick="showArtworkDetail(${artwork.id}); closeArtistModal();">
-//                         <img src="${getImageUrl(artwork.imageUrl)}" alt="${artwork.title}">
-//                         <div class="portfolio-overlay">
-//                             <h4>${artwork.title}</h4>
-//                             <p>${artwork.price} tETH</p>
-//                         </div>
-//                     </div>
-//                 `).join('')}
-//             </div>
+//         <div style="text-align:center; padding:2rem;">
+//             <p>Loading artist details...</p>
 //         </div>
 //     `;
 
-//     modal.style.display = 'block';
+//     try {
+//         const userRef = doc(db, "users", walletAddr);
+//         const userSnap = await getDoc(userRef);
+//         let userData = {};
+//         if (userSnap.exists()) {
+//             userData = userSnap.data();
+//         } else {
+//             // Try to match from submittedArtworks if Firestore doc is missing
+//             const artMatch = submittedArtworks.find(a => a.sellerId?.toLowerCase() === walletAddr);
+//             if (artMatch) {
+//                 userData.username = artMatch.artist || "Unnamed Artist";
+//             }
+//         }
+
+//         const username = userData.username || "Unknown Artist";
+//         const bio = userData.bio || "This artist has not added a bio yet.";
+//         const joined = userData.joinedAt ? new Date(userData.joinedAt).getFullYear() : "—";
+
+//         // Fetch their artworks
+//         const sellingArtsRef = collection(db, "users", walletAddr.toLowerCase(), "sellingArts");
+//         const artSnap = await getDocs(sellingArtsRef);
+
+//         if (!artSnap || artSnap.empty) {
+//             profileContainer.innerHTML = `
+//                 <div class="artist-profile">
+//                     <h2>${username}</h2>
+//                     <p class="artist-bio">${bio}</p>
+//                     <p style="margin-top:1rem;">No artworks available yet.</p>
+//                 </div>`;
+//             return;
+//         }
+
+//         const artworksHTML = artSnap.docs.map(docSnap => {
+//             const art = docSnap.data() || {};
+//             const artId = docSnap.id;
+//             const imageUrl = getImageUrl(art.imageUrl || "");
+//             const title = art.title || "Untitled";
+//             const price = art.price || "0.000";
+//             const category = art.category || "Uncategorized";
+//             const year = art.year || "—";
+            
+//             return `
+//                 <div class="portfolio-item" style="cursor:pointer;" onclick="closeArtistModal(); showArtworkDetail('${artId}');">
+//                     <img src="${imageUrl}" alt="${title}" loading="lazy" style="width:160px; height:110px; object-fit:cover; border-radius:8px;">
+//                     <div class="portfolio-item-meta" style="margin-top:6px; text-align:left;">
+//                         <strong style="font-size:0.95rem;">${title}</strong>
+//                         <div style="font-size:0.85rem; color:#666;">${category} • ${year} • ${price} tETH</div>
+//                     </div>
+//                 </div>
+//             `;
+//         }).join("");
+
+//         profileContainer.innerHTML = `
+//             <div class="artist-profile" style="padding:1rem 1.5rem;">
+//                 <div style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+//                     <div style="width:64px; height:64px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#f3f4f6; font-weight:700; font-size:1.4rem;">
+//                         ${username.charAt(0).toUpperCase()}
+//                     </div>
+//                     <div>
+//                         <h2 style="margin:0;">${username}</h2>
+//                         <div style="color:#6b7280; font-size:0.95rem;">Joined ${joined}</div>
+//                     </div>
+//                 </div>
+
+//                 <p class="artist-bio" style="color:#374151; margin-bottom:1rem;">${bio}</p>
+
+//                 <h3 style="margin:0 0 0.5rem;">Portfolio</h3>
+//                 <div class="artist-portfolio-grid" style="display:flex; gap:1rem; flex-wrap:wrap;">
+//                     ${artworksHTML}
+//                 </div>
+//             </div>
+//         `;
+
+//     } catch (error) {
+//         console.error("Error loading artist profile:", error);
+//         modalContent.innerHTML = `
+//             <div style="text-align:center; color:red; padding:2rem;">
+//                 <p>Failed to load artist details.</p>
+//             </div>`;
+//     }
 // }
-
 async function showArtistProfile(walletAddr) {
-    walletAddr = walletAddr.toLowerCase();
-    const modal = document.getElementById("artistModal");
-    const profileContainer = document.getElementById("artistProfile");
+  walletAddr = walletAddr.toLowerCase();
+  const modal = document.getElementById("artistModal");
+  const profileContainer = document.getElementById("artistProfile");
 
-    if (!modal) {
-        console.error("❌ artistModal element not found in HTML");
-        return;
+  if (!modal || !profileContainer) {
+    console.error("❌ artist modal or profile container missing in HTML");
+    return;
+  }
+
+  modal.style.display = "block";
+  profileContainer.innerHTML = `
+    <div style="text-align:center; padding:2rem;">
+      <p>Loading artist details...</p>
+    </div>
+  `;
+
+  try {
+    // Step 1 — Try to load Firestore user data
+    const userSnap = await getDoc(doc(db, "users", walletAddr));
+    let userData = {};
+    if (userSnap.exists()) {
+      userData = userSnap.data();
     }
-    if (!profileContainer) {
-        console.error("❌ artistProfile container not found in HTML");
-        modal.style.display = "none";
-        return;
-    }
 
-    modal.style.display = "block";
-    profileContainer.innerHTML = `
-        <div style="text-align:center; padding:2rem;">
-            <p>Loading artist details...</p>
-        </div>
-    `;
+    // Step 2 — Try to supplement missing data from submittedArtworks
+    const artistArts = submittedArtworks.filter(
+      a => a.sellerId?.toLowerCase() === walletAddr
+    );
 
+    const username =
+      userData.username ||
+      artistArts[0]?.artist ||
+      "Unknown Artist";
+
+    const bio = userData.bio || "This artist has not added a bio yet.";
+    const joined = userData.joinedAt
+      ? new Date(userData.joinedAt).getFullYear()
+      : "—";
+
+    // Step 3 — Try to fetch artworks from Firestore (users/[wallet]/sellingArts)
+    let artDocs = [];
     try {
-        const userRef = doc(db, "users", walletAddr);
-        const userSnap = await getDoc(userRef);
-        let userData = {};
-        if (userSnap.exists()) {
-            userData = userSnap.data();
-        } else {
-            // Try to match from submittedArtworks if Firestore doc is missing
-            const artMatch = submittedArtworks.find(a => a.sellerId?.toLowerCase() === walletAddr);
-            if (artMatch) {
-                userData.username = artMatch.artist || "Unnamed Artist";
-            }
-        }
+      const sellingArtsRef = collection(db, "users", walletAddr.toLowerCase(), "sellingArts");
+      const artSnap = await getDocs(sellingArtsRef);
+      artSnap.forEach(docSnap => {
+        artDocs.push({ id: docSnap.id, ...docSnap.data() });
+      });
+    } catch (e) {
+      console.warn("⚠️ Could not load sellingArts, using submittedArtworks fallback", e);
+    }
 
-        const username = userData.username || "Unknown Artist";
-        const bio = userData.bio || "This artist has not added a bio yet.";
-        const joined = userData.joinedAt ? new Date(userData.joinedAt).getFullYear() : "—";
+    // Step 4 — Fallback to submittedArtworks if Firestore collection is empty
+    if (artDocs.length === 0 && artistArts.length > 0) {
+      artDocs = artistArts;
+    }
 
-        // Fetch their artworks
-        const sellingArtsRef = collection(db, "users", walletAddr, "sellingArts");
-        const artSnap = await getDocs(sellingArtsRef);
-
-        if (!artSnap || artSnap.empty) {
-            profileContainer.innerHTML = `
-                <div class="artist-profile">
-                    <h2>${username}</h2>
-                    <p class="artist-bio">${bio}</p>
-                    <p style="margin-top:1rem;">No artworks available yet.</p>
-                </div>`;
-            return;
-        }
-
-        const artworksHTML = artSnap.docs.map(docSnap => {
-            const art = docSnap.data() || {};
-            const artId = docSnap.id;
+    // Step 5 — Generate artwork cards
+    const artworksHTML =
+      artDocs.length > 0
+        ? artDocs.map(art => {
             const imageUrl = getImageUrl(art.imageUrl || "");
             const title = art.title || "Untitled";
             const price = art.price || "0.000";
             const category = art.category || "Uncategorized";
             const year = art.year || "—";
-            
+            const artId = art.id || "";
+
             return `
-                <div class="portfolio-item" style="cursor:pointer;" onclick="closeArtistModal(); showArtworkDetail('${artId}');">
-                    <img src="${imageUrl}" alt="${title}" loading="lazy" style="width:160px; height:110px; object-fit:cover; border-radius:8px;">
-                    <div class="portfolio-item-meta" style="margin-top:6px; text-align:left;">
-                        <strong style="font-size:0.95rem;">${title}</strong>
-                        <div style="font-size:0.85rem; color:#666;">${category} • ${year} • ${price} tETH</div>
-                    </div>
+              <div class="portfolio-item" style="cursor:pointer;"
+                  onclick="closeArtistModal(); showArtworkDetail('${artId}');">
+                <img src="${imageUrl}" alt="${title}" loading="lazy"
+                    style="width:160px; height:110px; object-fit:cover; border-radius:8px;">
+                <div class="portfolio-item-meta" style="margin-top:6px; text-align:left;">
+                  <strong style="font-size:0.95rem;">${title}</strong>
+                  <div style="font-size:0.85rem; color:#666;">
+                    ${category} • ${year} • ${price} tETH
+                  </div>
                 </div>
+              </div>
             `;
-        }).join("");
+          }).join("")
+        : `<p style="margin-top:1rem;">No artworks available yet.</p>`;
 
-        profileContainer.innerHTML = `
-            <div class="artist-profile" style="padding:1rem 1.5rem;">
-                <div style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
-                    <div style="width:64px; height:64px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#f3f4f6; font-weight:700; font-size:1.4rem;">
-                        ${username.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                        <h2 style="margin:0;">${username}</h2>
-                        <div style="color:#6b7280; font-size:0.95rem;">Joined ${joined}</div>
-                    </div>
-                </div>
+    // Step 6 — Render the final modal content
+    profileContainer.innerHTML = `
+      <div class="artist-profile" style="padding:1rem 1.5rem;">
+        <div style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+          <div style="width:64px; height:64px; border-radius:12px; display:flex;
+                      align-items:center; justify-content:center; background:#f3f4f6;
+                      font-weight:700; font-size:1.4rem;">
+            ${username.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h2 style="margin:0;">${username}</h2>
+            <div style="color:#6b7280; font-size:0.95rem;">Joined ${joined}</div>
+          </div>
+        </div>
 
-                <p class="artist-bio" style="color:#374151; margin-bottom:1rem;">${bio}</p>
+        <p class="artist-bio" style="color:#374151; margin-bottom:1rem;">${bio}</p>
 
-                <h3 style="margin:0 0 0.5rem;">Portfolio</h3>
-                <div class="artist-portfolio-grid" style="display:flex; gap:1rem; flex-wrap:wrap;">
-                    ${artworksHTML}
-                </div>
-            </div>
-        `;
-
-    } catch (error) {
-        console.error("Error loading artist profile:", error);
-        modalContent.innerHTML = `
-            <div style="text-align:center; color:red; padding:2rem;">
-                <p>Failed to load artist details.</p>
-            </div>`;
-    }
+        <h3 style="margin:0 0 0.5rem;">Portfolio</h3>
+        <div class="artist-portfolio-grid" style="display:flex; gap:1rem; flex-wrap:wrap;">
+          ${artworksHTML}
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.error("❌ Error loading artist profile:", error);
+    profileContainer.innerHTML = `
+      <div style="text-align:center; color:red; padding:2rem;">
+        <p>Failed to load artist details.</p>
+      </div>`;
+  }
 }
-
-
 
 
 function closeArtistModal() {
@@ -1570,7 +1667,7 @@ function renderCartItems() {
                 <h4 class="cart-item-title">${item.title}</h4>
                 <p class="cart-item-artist">by ${item.artist}</p>
                 <p class="cart-item-price">${item.price} ETH</p>
-                <span class="nft-badge">Unique NFT</span>
+                <span class="nft-badge">Unique Artwork</span>
             </div>
             <div class="cart-item-actions">
                 <button class="remove-btn enhanced-remove-btn" onclick="removeFromCart('${item.id}')">
@@ -2208,32 +2305,65 @@ async function confirmResell() {
 
 
 async function resellArtwork(artId, newPrice) {
+    if (!walletConnected || !walletAddress) {
+        showToast("Please connect your wallet first.", "error");
+        return;
+    }
+    
     try {
+        showLoading();
+        showLoadingText("Preparing your artwork for resale...");
+
         const artRef = doc(db, "users", walletAddress.toLowerCase(), "artBought", String(artId));
         const snapshot = await getDoc(artRef);
 
         if (!snapshot.exists()) {
+            hideLoading();
             showToast("Artwork not found in your purchases", "error");
             return;
         }
 
         const artData = snapshot.data();
+        const today = new Date().toISOString().split("T")[0];
+        const parsedPrice = parseFloat(newPrice);
+
+        const newPriceEvent = {
+            price: parsedPrice,
+            date: today,
+            event: "Relisted",
+        };
+
+        const updatedPriceHistory = Array.isArray(artData.price_history)
+        ? [...artData.price_history, newPriceEvent]
+        : [newPriceEvent];
+
 
         // Build new resale record
-        const resaleData = {
-            ...artData.artwork,
-            price: newPrice,
-            sellerId: walletAddress.toLowerCase(),
-            inStock: true,
+        const relistedArt = {
+            id: artData.artwork.id,
+            title: artData.artwork.title,
+            artist: artData.artwork.artist,
+            description: artData.artwork.description,
+            category: artData.artwork.category,
+            dimension: artData.artwork.dimension || "N/A",
+            imageUrl: artData.artwork.imageUrl,
+            year: artData.artwork.year || "",
+            price: parsedPrice,
             resale: true,
-            updatedAt: new Date().toISOString()
+            inStock: true,
+            sellerId: walletAddress.toLowerCase(),
+            original_owner: artData.original_owner || walletAddress.toLowerCase(),
+            current_owner: walletAddress.toLowerCase(),
+            owner_history: artData.owner_history || [],
+            price_history: updatedPriceHistory,
+            timestamp: new Date().toISOString(),
         };
 
         // Save to user's sellingArts
-        await setDoc(doc(db, "users", walletAddress.toLowerCase(), "sellingArts", String(artId)), resaleData);
+        await setDoc(doc(db, "users", walletAddress.toLowerCase(), "sellingArts", String(artId)), relistedArt);
 
         // Save to global artworks
-        await setDoc(doc(db, "artworks", String(artId)), resaleData);
+        await setDoc(doc(db, "artworks", String(artId)), relistedArt);
 
         // Remove from user's artBought
         await deleteDoc(artRef);
@@ -2244,6 +2374,7 @@ async function resellArtwork(artId, newPrice) {
         loadUserPurchases(); // refresh purchased list
         loadUserArtworks();   // refresh selling list
         loadArtworks();
+        hideLoading();
 
     } catch (error) {
         console.error("Resell failed:", error);
@@ -2316,45 +2447,6 @@ window.addEventListener("click", (event) => {
 });
 
 
-
-// function disconnectWallet() {
-//   try {
-//     // Mark that user intentionally disconnected (prevents auto-reconnect)
-//     localStorage.setItem('walletDisconnectedByUser', 'true');
-
-//     // Remove saved wallet
-//     localStorage.removeItem('walletAddress');
-
-//     // Remove listeners (if you added them earlier)
-//     if (window.ethereum && window.ethereum.removeListener) {
-//       try {
-//         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-//       } catch (e) { console.warn('accountsChanged removeListener failed', e); }
-//       try {
-//         window.ethereum.removeListener('chainChanged', handleChainChanged);
-//       } catch (e) { console.warn('chainChanged removeListener failed', e); }
-//     }
-
-//     // Reset app state
-//     walletAddress = null;
-//     walletConnected = false;
-
-//     // Update UI (use your existing function — ensure it handles null/false)
-//     updateWalletUI();
-
-//     // Clear profile areas (optional)
-//     const ua = document.getElementById('userArtworks');
-//     const up = document.getElementById('userPurchases');
-//     if (ua) ua.innerHTML = '';
-//     if (up) up.innerHTML = '';
-
-//     showToast('Wallet disconnected locally. To fully revoke access remove this site in MetaMask (instructions below).', 'success');
-//     setTimeout(() => location.reload(), 1000);
-//   } catch (err) {
-//     console.error('disconnectWallet error:', err);
-//     showToast('Failed to disconnect wallet', 'error');
-//   }
-// }
 function showLoading() {
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) overlay.style.display = 'flex';
@@ -2379,6 +2471,16 @@ function onWalletReady(callback) {
         });
     }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
