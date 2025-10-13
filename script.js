@@ -799,8 +799,8 @@ function renderCartItems() {
     if (cart.length === 0) {
         cartItems.innerHTML = `
             <div class="empty-cart">
-                <i class="fas fa-shopping-cart" style="font-size: 3rem; margin-bottom: 1rem; color: #94a3b8;"></i>
-                <h3>Your cart is empty</h3>
+                <i class="fas fa-shopping-basket" style="font-size: 3rem; margin-bottom: 1rem; color: #94a3b8;"></i>
+                <h3>Your basket is empty</h3>
                 <p>Add some artworks to get started</p>
             </div>
         `;
@@ -817,15 +817,29 @@ function renderCartItems() {
             <div class="cart-item-info">
                 <h4 class="cart-item-title">${item.title}</h4>
                 <p class="cart-item-artist">by ${item.artist}</p>
-                <p class="cart-item-price">${item.price} tETH</p>
+                <p class="cart-item-price">${item.price} ETH</p>
+                <span class="nft-badge">Unique Artwork</span>
             </div>
             <div class="cart-item-actions">
-                <button class="remove-btn" onclick="removeFromCart(${item.id})">Remove</button>
+                <button class="remove-btn enhanced-remove-btn" onclick="removeFromCart('${item.id}')">
+                    <i class="fas fa-times"></i> Remove
+                </button>
             </div>
         </div>
     `).join('');
 }
 
+// Close modals when clicking outside - Enhanced
+window.addEventListener('click', function(event) {
+    const modals = ['cartModal', 'artworkModal', 'blockchainModal', 'artistModal'];
+    
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+});
 async function checkout() {
     if (!walletConnected || !walletAddress) {
         return onWalletReady(async (address) => {
@@ -1691,57 +1705,6 @@ function viewAllUsers() {
 function viewTransactions() {
     showToast('Loading transaction history...', 'info');
 }
-
-// Enhanced cart functionality with basket branding
-function renderCartItems() {
-    const cartItems = document.getElementById('cartItems');
-    const cartTotal = document.getElementById('cartTotal');
-    
-    if (cart.length === 0) {
-        cartItems.innerHTML = `
-            <div class="empty-cart">
-                <i class="fas fa-shopping-basket" style="font-size: 3rem; margin-bottom: 1rem; color: #94a3b8;"></i>
-                <h3>Your basket is empty</h3>
-                <p>Add some artworks to get started</p>
-            </div>
-        `;
-        cartTotal.textContent = '0.000';
-        return;
-    }
-    
-    const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    cartTotal.textContent = total.toFixed(3);
-    
-    cartItems.innerHTML = cart.map(item => `
-        <div class="cart-item">
-            <img src="${item.imageUrl}" alt="${item.title}" class="cart-item-image">
-            <div class="cart-item-info">
-                <h4 class="cart-item-title">${item.title}</h4>
-                <p class="cart-item-artist">by ${item.artist}</p>
-                <p class="cart-item-price">${item.price} ETH</p>
-                <span class="nft-badge">Unique Artwork</span>
-            </div>
-            <div class="cart-item-actions">
-                <button class="remove-btn enhanced-remove-btn" onclick="removeFromCart('${item.id}')">
-                    <i class="fas fa-times"></i> Remove
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-// Close modals when clicking outside - Enhanced
-window.addEventListener('click', function(event) {
-    const modals = ['cartModal', 'artworkModal', 'blockchainModal', 'artistModal'];
-    
-    modals.forEach(modalId => {
-        const modal = document.getElementById(modalId);
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-});
-
 
 
 
