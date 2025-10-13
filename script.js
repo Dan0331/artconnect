@@ -1803,110 +1803,6 @@ async function loadUserProfileFromDB(walletAddr) {
 
 
 function enableUsernameEdit() {
-  const now = Date.now();
-  const lastEdit = currentUser?.lastUsernameUpdate || 0;
-  const sixtyDays = 60 * 24 * 60 * 60 * 1000;
-
-  if (now - lastEdit < sixtyDays) {
-    const remaining = Math.ceil((sixtyDays - (now - lastEdit)) / (24 * 60 * 60 * 1000));
-    showToast(`⏳ You can edit your username again in ${remaining} day(s).`, "warning");
-    return;
-  }
-
-  // Cooldown expired → show input
-  document.getElementById("usernameEdit").style.display = "block";
-}
-
-
-// function renderUserProfile() {
-//     if (!currentUser) return;
-//     document.getElementById("profileName").textContent = currentUser.username;
-//     document.getElementById("profileWallet").textContent = `Wallet: ${walletAddress}`;
-
-//     const artistInput = document.getElementById("artistName");
-//     if (artistInput) {
-//         artistInput.value = currentUser.username || "Unnamed Artist";
-//     }
-
-//     checkUsernameCooldown();
-
-//     loadUserArtworksLive(walletAddress);
-//     loadUserPurchasesLive(walletAddress);
-// }
-
-
-function renderUserProfile() {
-  if (!currentUser) return;
-
-  // Display username and wallet
-  document.getElementById("profileName").textContent =
-    currentUser.username || "New User";
-  document.getElementById("profileWallet").textContent =
-    `Wallet: ${walletAddress || "Not Connected"}`;
-
-  // Display bio (if element exists)
-  const bioEl = document.getElementById("profileBio");
-  if (bioEl) {
-    bioEl.textContent = currentUser.bio || "No bio yet.";
-  }
-
-  // Pre-fill artist name on upload form
-  const artistInput = document.getElementById("artistName");
-  if (artistInput) {
-    artistInput.value = currentUser.username || "Unnamed Artist";
-  }
-
-  // Optional cooldown check for username edits
-  if (typeof checkUsernameCooldown === "function") {
-    checkUsernameCooldown();
-  }
-
-  // Load user's artworks & purchases
-  if (walletAddress) {
-    loadUserArtworksLive(walletAddress);
-    loadUserPurchasesLive(walletAddress);
-  }
-
-  // ✅ NEW: ensure wallet data is properly recognized after refresh
-  onWalletReady((address) => {
-    console.log("Wallet ready inside renderUserProfile:", address);
-    document.getElementById("profileWallet").textContent = `Wallet: ${address}`;
-
-    // Reload wallet-dependent data once the wallet reconnects
-    loadUserArtworksLive(address);
-    loadUserPurchasesLive(address);
-  });
-}
-
-
-
-
-
-// function enableUsernameEdit() {
-//     if (!walletConnected) {
-//         showToast("Please connect your wallet first", "error");
-//         return;
-//     }
-
-//     const canEdit = checkUsernameCooldown();
-//     if (!canEdit) {
-//         // Extra toast when user tries before cooldown expires
-//         const lastUpdate = currentUser.lastUsernameUpdate || 0;
-//         const elapsed = Date.now() - lastUpdate;
-//         const remaining = USERNAME_COOLDOWN - elapsed;
-//         const daysLeft = Math.ceil(remaining / (1000 * 60 * 60 * 24));
-
-//         showToast(`⏳ You can't change your username yet. Please wait ${daysLeft} day(s).`, "warning");
-//         return;
-//     }
-
-//     document.getElementById("usernameEdit").style.display = "flex";
-//     document.getElementById("editNameBtn").style.display = "none";
-//     document.getElementById("usernameInput").value = currentUser.username;
-// }
-
-
-function enableUsernameEdit() {
     if (!walletConnected || !currentUser) {
         showToast("Please connect your wallet first", "error");
         return;
@@ -1981,6 +1877,78 @@ function enableUsernameEdit() {
 //         showToast("Error updating username", "error");
 //     }
 // }
+
+function renderUserProfile() {
+  if (!currentUser) return;
+
+  // Display username and wallet
+  document.getElementById("profileName").textContent =
+    currentUser.username || "New User";
+  document.getElementById("profileWallet").textContent =
+    `Wallet: ${walletAddress || "Not Connected"}`;
+
+  // Display bio (if element exists)
+  const bioEl = document.getElementById("profileBio");
+  if (bioEl) {
+    bioEl.textContent = currentUser.bio || "No bio yet.";
+  }
+
+  // Pre-fill artist name on upload form
+  const artistInput = document.getElementById("artistName");
+  if (artistInput) {
+    artistInput.value = currentUser.username || "Unnamed Artist";
+  }
+
+  // Optional cooldown check for username edits
+  if (typeof checkUsernameCooldown === "function") {
+    checkUsernameCooldown();
+  }
+
+  // Load user's artworks & purchases
+  if (walletAddress) {
+    loadUserArtworksLive(walletAddress);
+    loadUserPurchasesLive(walletAddress);
+  }
+
+  // ✅ NEW: ensure wallet data is properly recognized after refresh
+  onWalletReady((address) => {
+    console.log("Wallet ready inside renderUserProfile:", address);
+    document.getElementById("profileWallet").textContent = `Wallet: ${address}`;
+
+    // Reload wallet-dependent data once the wallet reconnects
+    loadUserArtworksLive(address);
+    loadUserPurchasesLive(address);
+  });
+}
+
+
+
+
+
+// function enableUsernameEdit() {
+//     if (!walletConnected) {
+//         showToast("Please connect your wallet first", "error");
+//         return;
+//     }
+
+//     const canEdit = checkUsernameCooldown();
+//     if (!canEdit) {
+//         // Extra toast when user tries before cooldown expires
+//         const lastUpdate = currentUser.lastUsernameUpdate || 0;
+//         const elapsed = Date.now() - lastUpdate;
+//         const remaining = USERNAME_COOLDOWN - elapsed;
+//         const daysLeft = Math.ceil(remaining / (1000 * 60 * 60 * 24));
+
+//         showToast(`⏳ You can't change your username yet. Please wait ${daysLeft} day(s).`, "warning");
+//         return;
+//     }
+
+//     document.getElementById("usernameEdit").style.display = "flex";
+//     document.getElementById("editNameBtn").style.display = "none";
+//     document.getElementById("usernameInput").value = currentUser.username;
+// }
+
+
 
 async function saveUsername() {
     if (!walletConnected || !currentUser) {
