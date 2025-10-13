@@ -2540,6 +2540,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadUserPurchasesLive,
     loadUserArtworksLive,
     hideLoading,
+    buyArtworkFromModal,
   });
 });
 
